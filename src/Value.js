@@ -5,13 +5,15 @@ function Value()
     this.internalValue = 0;
     this.externalValue = 0;
 
+    this.lastExternalChangeTime = 0;
+
     this.setMode = this.setMode.bind(this);
     this.setMode('Pickup');
 
     if (!Value.modeSetting) {
       Value.modeSetting = host.getPreferences().getEnumSetting('Value Mode', 'Encoder', ['Direct', 'Pickup', 'Scale'], 'Direct');
     }
-    
+
     Value.modeSetting.addValueObserver(this.setMode);
 }
 
@@ -29,6 +31,12 @@ Value.prototype.setMode = function(mode)
 
     this.setInternal = Mode.setInternal.bind(this);
     this.setExternal = Mode.setExternal.bind(this);
+};
+
+Value.prototype._isControllingExternally = function()
+{
+    var d = new Date();
+    return d.getTime() - this.lastExternalChangeTime < 100;
 };
 
 Value.Mode = {};
@@ -51,13 +59,21 @@ Value.Mode.Direct.setExternal = function(value)
 Value.Mode.Pickup = {};
 Value.Mode.Pickup.setInternal = function(value)
 {
+    if (this._isControllingExternally()) {
+        return;
+    }
     this.internalValue = value;
     this.emit('change', this.internalValue);
     return this;
 };
 Value.Mode.Pickup.setExternal = function(value)
 {
-    if (this.externalValue === this.internalValue) {
+    var d = new Date();
+    this.lastExternalChangeTime = d.getTime();
+
+    var diff = Math.abs(this.externalValue - this.internalValue);
+
+    if (diff <= 1) {
         this.internalValue = value;
     }
     this.externalValue = value;
